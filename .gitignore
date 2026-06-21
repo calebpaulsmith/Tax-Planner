@@ -1,0 +1,13 @@
+# Personal financial source data — never commit
+data/
+*.xlsx
+*.xls
+*.doc
+*.docx
+*-backup-*.json
+backup-*.json
+
+# Editor / OS
+.claude/
+.DS_Store
+Thumbs.db

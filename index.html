@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1020" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Paycheck &amp; Tax Planner</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-view="dashboard">
+  <header class="appbar">
+    <div class="appbar-row">
+      <h1 class="brand">Tax&nbsp;Planner</h1>
+      <label class="period-select">
+        <span class="ps-label">Pay period</span>
+        <select id="periodSelect"></select>
+      </label>
+    </div>
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section data-view-name="dashboard" class="view">
+      <div id="adviceCards" class="advice-cards"></div>
+
+      <div class="card">
+        <div class="card-head"><h2>This paycheck</h2><span id="dashPeriodLabel" class="muted"></span></div>
+        <div id="paycheckHero" class="paycheck-hero"></div>
+        <div id="waterfall" class="waterfall"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Where it goes</h2><span class="muted">this paycheck</span></div>
+        <div id="categoryBreakdown" class="cat-breakdown"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Year to date</h2><span id="ytdYearLabel" class="muted"></span></div>
+        <div id="ytdTotals" class="ytd-totals"></div>
+      </div>
+    </section>
+
+    <!-- TAX RATE -->
+    <section data-view-name="taxrate" class="view">
+      <div class="card">
+        <div class="card-head"><h2>Your tax rate</h2><span class="muted">annualized</span></div>
+        <div id="rateGauges" class="rate-gauges"></div>
+        <div id="bracketLadder" class="bracket-ladder"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Overtime &amp; bonus reality</h2><span class="muted">what you keep above the jump</span></div>
+        <div id="otReality" class="ot-reality"></div>
+      </div>
+    </section>
+
+    <!-- SCENARIOS -->
+    <section data-view-name="scenarios" class="view">
+      <div class="card">
+        <div class="card-head"><h2>What-if</h2><span class="muted">per paycheck</span></div>
+        <div class="scenario-controls">
+          <label>HSA / pre-tax per paycheck
+            <input type="range" id="hsaSlider" min="0" max="800" step="25" value="0" />
+            <output id="hsaOut">$0</output>
+          </label>
+          <label>Extra TSP (% of base)
+            <input type="range" id="tspSlider" min="0" max="20" step="1" value="0" />
+            <output id="tspOut">0%</output>
+          </label>
+        </div>
+        <div id="scenarioResult" class="scenario-result"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Will I owe?</h2><span class="muted">annual estimate</span></div>
+        <div id="annualEstimate" class="annual-estimate"></div>
+      </div>
+    </section>
+
+    <!-- PROJECTIONS -->
+    <section data-view-name="projections" class="view">
+      <div class="card">
+        <div class="card-head"><h2>TSP at retirement</h2><span id="tspYears" class="muted"></span></div>
+        <div id="tspProjection"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>FERS annuity</h2><span class="muted">basic pension</span></div>
+        <div id="fersProjection"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section data-view-name="settings" class="view">
+      <div class="card">
+        <div class="card-head"><h2>Import &amp; data</h2></div>
+        <div class="settings-group">
+          <button id="importElBtn" class="btn">Import E&amp;L statements (.doc)</button>
+          <input type="file" id="importElInput" accept=".doc,.html,.htm" multiple hidden />
+          <p class="hint" id="importStatus"></p>
+          <button id="addManualBtn" class="btn ghost">+ Add a paycheck manually</button>
+          <div class="row-actions">
+            <button id="exportBackupBtn" class="btn ghost">Export backup</button>
+            <button id="importBackupBtn" class="btn ghost">Import backup</button>
+            <input type="file" id="importBackupInput" accept=".json" hidden />
+          </div>
+          <button id="clearAllBtn" class="btn danger ghost">Clear all data</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Tax profile</h2></div>
+        <div class="settings-group">
+          <label>Filing status
+            <select id="setFilingStatus">
+              <option value="MFJ">Married filing jointly</option>
+              <option value="Single">Single</option>
+              <option value="HoH">Head of household</option>
+            </select>
+          </label>
+          <label>IL withholding allowances
+            <input type="number" id="setIlAllowances" min="0" step="1" />
+          </label>
+          <label>W-4 deduction adjustment ($/yr)
+            <input type="number" id="setW4Deductions" step="100" />
+          </label>
+          <label>W-4 tax credits ($/yr)
+            <input type="number" id="setW4Credits" step="100" />
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" id="setIncludeHsa" />
+            Count HSA/pre-tax savings as "retained" in net stats
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Retirement assumptions</h2></div>
+        <div class="settings-group" id="assumptionsForm"></div>
+      </div>
+
+      <div class="card collapsible">
+        <div class="card-head"><h2>Tax tables</h2><span class="muted">advanced</span></div>
+        <div id="taxTableEditor" class="settings-group"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-go="dashboard" class="tab"><span>Money</span></button>
+    <button data-go="taxrate" class="tab"><span>Rate</span></button>
+    <button data-go="scenarios" class="tab"><span>What-if</span></button>
+    <button data-go="projections" class="tab"><span>Future</span></button>
+    <button data-go="settings" class="tab"><span>Settings</span></button>
+  </nav>
+
+  <!-- Manual / edit paycheck modal -->
+  <div id="periodModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="periodModalTitle">Add paycheck</h3><button class="modal-x" id="periodModalClose">&times;</button></div>
+      <div id="periodForm" class="period-form"></div>
+      <div class="modal-actions">
+        <button id="periodSaveBtn" class="btn">Save</button>
+        <button id="periodDeleteBtn" class="btn danger ghost">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
+  <script src="tax.js"></script>
+  <script src="parse.js"></script>
+  <script src="db.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
