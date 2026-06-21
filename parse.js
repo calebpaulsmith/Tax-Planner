@@ -216,7 +216,169 @@
     return String(n).padStart(2, '0');
   }
 
-  const api = { parse, parseMany };
+  // ================================================================
+  // PDF import (browser only — uses pdf.js global `pdfjsLib`).
+  // Returns the SAME normalized shapes as the .doc parser / the app's
+  // settings, so downstream code is identical. Each parser is best-effort
+  // and the UI shows parsed values for confirmation before saving.
+  // ================================================================
+  async function readPdf(arrayBuffer) {
+    if (typeof pdfjsLib === 'undefined') throw new Error('pdf.js not loaded');
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fields = {};
+    try { fields = (await pdf.getFieldObjects()) || {}; } catch (e) { fields = {}; }
+    const pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const tc = await page.getTextContent();
+      const items = tc.items.map((it) => ({
+        str: it.str, x: it.transform[4], y: it.transform[5],
+      }));
+      pages.push({ items, text: tc.items.map((it) => it.str).join(' ') });
+    }
+    return { pages, fields, allText: pages.map((p) => p.text).join('\n') };
+  }
+  function fieldVal(fields, name) {
+    const f = fields[name];
+    if (!f) return undefined;
+    // pdf.js returns an array per field name; the first entry is the parent
+    // (no value). Scan for the first kid with an actual value.
+    const arr = Array.isArray(f) ? f : [f];
+    for (const o of arr) if (o && o.value != null && o.value !== '') return o.value;
+    return undefined;
+  }
+
+  // ---- W-2 (clean named form fields on the FEMA/NFC W-2) -----------
+  function parseW2(pdfData) {
+    const f = pdfData.fields || {};
+    const get = (n) => money(fieldVal(f, n));
+    const w2 = {
+      kind: 'w2',
+      box1Wages: get('GROSS_TAX_INCOME'),
+      fedWithheld: get('FED_TAX_WITHHELD'),
+      ssWages: get('SOC_SEC_WAGES'),
+      medicareWages: get('MEDICARE_WAGES'),
+      stateWages: get('STATE_WAGES'),
+      stateWithheld: get('STATE_TAX'),
+      tspTraditional: 0, hsa: 0, qualifiedOt: 0,
+    };
+    // Box 12 codes: D = traditional TSP/401k, W = HSA (employer+employee), AA/EE = Roth
+    for (let i = 1; i <= 8; i++) {
+      const code = (fieldVal(f, `blk12_${i}_literal`) || '').toString().trim().toUpperCase();
+      const amt = money(fieldVal(f, `blk12_${i}`));
+      if (code === 'D' || code === 'EE') w2.tspTraditional += amt;
+      if (code === 'AA') w2.rothTsp = (w2.rothTsp || 0) + amt;
+      if (code === 'W') w2.hsa += amt;
+    }
+    // Box 14: qualified overtime (OBBBA) sometimes reported here on 2025+ W-2s.
+    for (let i = 1; i <= 8; i++) {
+      const lit = (fieldVal(f, `blk14_${i}_literal`) || '').toString().toUpperCase();
+      const amt = money(fieldVal(f, `blk14_${i}`));
+      if (/OVERTIME|FLSA|OT\b/.test(lit)) w2.qualifiedOt += amt;
+    }
+    const yr = (pdfData.allText.match(/Tax Statement\s*(\d{4})|\b(20\d{2})\b/) || [])[0];
+    w2.year = yr ? +(yr.match(/20\d{2}/)[0]) : undefined;
+    return w2;
+  }
+
+  // ---- 1040 (parse the prepared-return summary; prefill household) --
+  function parse1040(pdfData) {
+    const t = pdfData.allText.replace(/\s+/g, ' ');
+    const grab = (re) => { const m = t.match(re); return m ? money(m[1]) : undefined; };
+    return {
+      kind: '1040',
+      grossIncome: grab(/Gross Income[.\s]*\$?\s*([\d,]+)/i),
+      agi: grab(/Adjusted Gross Income[.\s]*\$?\s*([\d,]+)/i),
+      taxableIncome: grab(/(?:Total )?Taxable Income[.\s]*\$?\s*([\d,]+)/i),
+      totalTax: grab(/Total Tax[.\s]*\$?\s*([\d,]+)/i),
+      year: (t.match(/YEAR ENDING\s*December 31,\s*(\d{4})/i) || t.match(/(20\d{2})\s*Federal/i) || [])[1] &&
+        +((t.match(/YEAR ENDING\s*December 31,\s*(\d{4})/i) || t.match(/(20\d{2})\s*Federal/i))[1]),
+    };
+  }
+
+  // ---- E&L PDF (USDA AD-334 coordinate form) — positional rows -----
+  function parseElPdf(pdfData) {
+    const p0 = pdfData.pages[0];
+    if (!p0) return null;
+    const items = p0.items.filter((it) => it.str && it.str.trim());
+    const period = { source: 'el', raw: [], ytd: {}, agency: {}, leave: {} };
+    const codeMap = {
+      '01': 'regular', '21': 'overtime', '34': 'flsa', '44': 'cashAward',
+      '61': 'annualLeave', '62': 'sickLeave', '66': 'otherLeave',
+      '75': null, '76': 'oasdi', '77': 'fedTax', '78': 'ilTax', '83': null, '97': 'medicare',
+    };
+    // Codes sit at x<60; amounts at x≈480-525 (P/P) and 530-575 (YTD). The form
+    // offsets a code and its amount by a pixel or two, so match by NEAREST y
+    // (a row-bucket would split pairs that straddle a boundary).
+    const codeItems = items.filter((it) => /^\d{2}$/.test(it.str.trim()) && it.x < 60);
+    const descItems = items.filter((it) => it.x >= 55 && it.x < 320);
+    const nearest = (band0, band1, y) => {
+      let best = null, bestDy = 4.5;
+      for (const it of items) {
+        if (it.x < band0 || it.x > band1) continue;
+        if (!/^[\d,]+\.\d{2}$/.test(it.str.trim())) continue;
+        const dy = Math.abs(it.y - y);
+        if (dy < bestDy) { bestDy = dy; best = it; }
+      }
+      return best ? money(best.str) : 0;
+    };
+    for (const ci of codeItems) {
+      const code = ci.str.trim();
+      const desc = descItems.filter((it) => Math.abs(it.y - ci.y) < 4.5).sort((a, b) => a.x - b.x).map((it) => it.str).join(' ').trim();
+      const ppAmt = nearest(470, 528, ci.y);
+      const ytdAmt = nearest(530, 580, ci.y);
+      period.raw.push({ code, desc, amountPP: ppAmt, amountYTD: ytdAmt });
+      let keyName = codeMap[code];
+      if (code === '75') keyName = /ROTH/i.test(desc) ? 'rothTsp' : /TSP/i.test(desc) ? 'tsp' : 'retirement';
+      if (code === '83') keyName = /DENTAL/i.test(desc) ? 'dental' : 'fehb';
+      if (keyName) { period[keyName] = (period[keyName] || 0) + ppAmt; period.ytd[keyName] = (period.ytd[keyName] || 0) + ytdAmt; }
+    }
+    // gross = sum of earnings; net = gross - deductions
+    const E = ['regular', 'overtime', 'flsa', 'cashAward', 'annualLeave', 'sickLeave', 'otherLeave'];
+    const D = ['retirement', 'tsp', 'rothTsp', 'oasdi', 'fedTax', 'ilTax', 'fehb', 'dental', 'hsa', 'medicare'];
+    period.gross = round2(E.reduce((s, k) => s + (period[k] || 0), 0));
+    period.totalDeductions = round2(D.reduce((s, k) => s + (period[k] || 0), 0));
+    period.net = round2(period.gross - period.totalDeductions);
+    // header: dates. AD-334 prints the official pay date plainly; period dates
+    // live in positional MO/DA/YR boxes that are unreliable to recover, so we
+    // anchor on the pay date and let the user confirm the period number.
+    const payM = pdfData.allText.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s*Official Pay Date/i);
+    if (payM) { period.payDate = toIso(payM[1]); period.year = +toIso(payM[1]).slice(0, 4); }
+    const dateM = pdfData.allText.match(/(\d{1,2}\/\d{1,2}\/\d{4})\s*(?:to|-)\s*(\d{1,2}\/\d{1,2}\/\d{4})/);
+    if (dateM) { period.periodStart = toIso(dateM[1]); period.periodEnd = toIso(dateM[2]); period.year = +period.periodStart.slice(0, 4); }
+    const ppM = pdfData.allText.match(/\bP\/?P\b[^0-9]{0,8}(\d{1,2})\b/);
+    if (ppM) period.pp = +ppM[1];
+    if (period.periodEnd) period.payDate = addDays(period.periodEnd, 12);
+    period.id = period.year && period.pp ? `${period.year}-PP${pad(period.pp)}` : undefined;
+    period.bonus = (period.cashAward || 0);
+    period.lowConfidence = !period.id || !period.gross; // flag for the confirm UI
+    return period;
+  }
+  function pickNum(row, xMin, xMax) {
+    const t = row.filter((it) => it.x >= xMin && it.x <= xMax && /^[\d,]+\.\d{2}$/.test(it.str.trim()));
+    return t.length ? money(t[t.length - 1].str) : 0;
+  }
+  function round2(n) { return Math.round(n * 100) / 100; }
+
+  // Dispatch a File by sniffing its content/type.
+  async function parseAnyPdf(arrayBuffer, filename) {
+    const data = await readPdf(arrayBuffer);
+    const t = data.allText;
+    // A prepared-return *package* contains W-2 copies too, and a standalone W-2's
+    // IRS insert mentions "Form 1040" — so neither generic term discriminates.
+    // Use return-SUMMARY markers (HR Block style) for the 1040, and the W-2's
+    // named form fields for the W-2.
+    const isReturn = /Individual Tax Return|Tax\s*Summary|Refund Amount|Amount You Owe|Total Taxable Income/i.test(t);
+    const isW2 = !!data.fields.GROSS_TAX_INCOME && /Wage and Tax Statement/i.test(t);
+    if (isW2 && !isReturn) return { type: 'w2', data: parseW2(data) };
+    if (isReturn) return { type: '1040', data: parse1040(data) };
+    if (/EARNINGS AND DEDUCTIONS|STATEMENT OF EARNINGS AND LEAVE|AD-334/i.test(t))
+      return { type: 'el', data: parseElPdf(data) };
+    if (data.fields.GROSS_TAX_INCOME) return { type: 'w2', data: parseW2(data) };
+    return { type: 'unknown', data: null };
+  }
+
+  const api = { parse, parseMany, readPdf, parseW2, parse1040, parseElPdf, parseAnyPdf };
   if (typeof window !== 'undefined') window.ELParse = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

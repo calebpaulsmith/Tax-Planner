@@ -1,0 +1,30 @@
+{
+  "_comment": "Canonical engine test vectors. Self-contained (no PDFs) so the SAME cases run in the node harness (scripts/verify.js) and, later, a Swift XCTest loading tax.js in JavaScriptCore. Keeping both green guarantees the engine never drifts across platforms.",
+  "paychecks": [
+    {
+      "label": "FEMA 2025-PP25 (ground truth from E&L)",
+      "period": { "year": 2025, "gross": 4684.00, "fehb": 201.52, "dental": 43.96, "hsa": 0,
+        "retirement": 206.10, "tsp": 234.20, "rothTsp": 0, "oasdi": 275.19, "medicare": 64.36,
+        "fedTax": 240.67, "ilTax": 197.26 },
+      "settings": { "filingStatus": "MFJ" },
+      "expect": { "net": 3220.74, "oasdi": 275.19, "medicare": 64.36, "ssMedWages": 4438.52 }
+    }
+  ],
+  "bracketTax": [
+    { "year": 2024, "status": "MFJ", "taxable": 103927, "expect": 12969.94, "note": "2024 return taxable; total tax 10,967 implies ~2,003 Child Tax Credit" },
+    { "year": 2025, "status": "MFJ", "taxable": 96949, "expectMarginal": 0.12 },
+    { "year": 2025, "status": "MFJ", "taxable": 96950, "expectMarginal": 0.22 },
+    { "year": 2026, "status": "MFJ", "taxable": 100799, "expectMarginal": 0.12 },
+    { "year": 2026, "status": "MFJ", "taxable": 100800, "expectMarginal": 0.22 }
+  ],
+  "overtimeDeduction": [
+    { "qualifiedOt": 10000, "magi": 250000, "status": "MFJ", "year": 2026, "expect": 10000 },
+    { "qualifiedOt": 30000, "magi": 250000, "status": "MFJ", "year": 2026, "expect": 25000, "note": "MFJ cap" },
+    { "qualifiedOt": 25000, "magi": 320000, "status": "MFJ", "year": 2026, "expect": 23000, "note": "phaseout: -100 per 1,000 over 300k" },
+    { "qualifiedOt": 10000, "magi": 100000, "status": "MFJ", "year": 2024, "expect": 0, "note": "not an eligible year" }
+  ],
+  "rothVsTraditional": [
+    { "amount": 10000, "opts": { "marginalNow": 0.22, "retireRate": 0.12 }, "expectRecommendation": "traditional" },
+    { "amount": 10000, "opts": { "marginalNow": 0.12, "retireRate": 0.24 }, "expectRecommendation": "roth" }
+  ]
+}

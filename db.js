@@ -20,7 +20,17 @@
     w4: { deductions: 0, credits: 0 },
     ilAllowances: 0,
     includeHsaInNet: false,
+    onboarded: false,
     hourlyContext: { hoursPerPeriod: 80 },
+    // Optional household inputs (predictor, not tax-prep). All default 0 so the
+    // FEMA-only path is unchanged; the user fills what applies.
+    household: {
+      spouseWages: 0, spouseWithheld: 0,
+      secondJobWages: 0, secondJobWithheld: 0, secondJobIlWithheld: 0,
+      interest: 0, dividends: 0, capGains: 0,
+      otherAdjustments: 0, itemizedDeductions: 0, taxCredits: 0,
+      ilAllowances: null,
+    },
     // Scenario knobs
     hsaPerPeriod: 0,
     extraTspPct: 0,

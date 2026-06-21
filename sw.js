@@ -1,10 +1,11 @@
 // Service worker: cache-first for the app shell, network-first fallback.
 // Bump CACHE_VERSION whenever a shell file changes.
-const CACHE_VERSION = 'taxplanner-v1';
+const CACHE_VERSION = 'taxplanner-v2';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
+  './cites.js',
   './tax.js',
   './parse.js',
   './db.js',

@@ -1,68 +1,86 @@
 # Paycheck & Tax Planner
 
-A fully-local, no-server **Progressive Web App** that turns federal
-**Earnings & Leave (E&L) statements** into paycheck analysis, real tax-rate
-insight, what-if scenarios, and retirement projections. A spinoff of the
-Maxiflex Timecard app, built on the same vanilla-JS + Dexie + GitHub Pages
-pattern (no build step). All data stays in your browser (IndexedDB).
+A fully-local, no-server **Progressive Web App** that turns your federal
+**Earnings & Leave (E&L)** statements into a trustworthy **tax predictor** —
+not tax-prep software. It explains every number, cites the rule, and drives a
+few real decisions. All data stays in your browser (IndexedDB); nothing is ever
+uploaded.
 
 ## What it answers
 
 - **Where my money goes** — per-paycheck waterfall (gross → every deduction →
-  net), category breakdown, and year-to-date totals including the **agency
-  match** (employer benefits) from your statements.
-- **My real tax rate** — federal marginal vs. all-in effective rate, a bracket
-  ladder showing exactly where you sit and **how far you are below the next
-  jump**, and the **overtime/bonus reality**: what fraction of OT you actually
-  keep vs. straight pay (OT stacks on top of your income, so it's taxed at your
-  marginal rate).
-- **Will I owe?** — annualized estimate vs. the standard deduction → projected
-  federal + IL refund or balance due. Plus HSA / extra-TSP **what-if sliders**.
-- **The future** — TSP future-value projection and FERS basic-annuity estimate,
-  with editable assumptions.
+  net), category breakdown, and YTD totals including the **agency match**.
+- **My real tax rate** — a **bracket-fill graphic** (your brackets filling as
+  income pours in, with the marginal band and "$ to the next jump"), an all-in
+  effective rate, and a "where each gross dollar goes" bar with **category
+  toggles**.
+- **Overtime reality (OBBBA)** — only the **premium half** of FLSA overtime is
+  deductible from federal income tax for 2025–2028; the app estimates your
+  qualified-OT and the deduction (prefers your W-2 figure when imported).
+- **The three decisions** — should I **increase my HSA** to stay under a
+  bracket, **contribute more to TSP**, or switch **Roth ↔ Traditional TSP**?
+  Each is a live tool with before/after numbers.
+- **Will I owe?** — an annualized federal + IL estimate (refund or balance due),
+  sharpened by optional household fields (spouse, 2nd job, investments).
+- **A printable Report** of highlights and recommendations.
 
-## Files
+### Explainable + cited
+Every key figure has a **"how is this computed?"** disclosure showing the
+plain-English step, the **formula with your actual numbers**, the inputs and
+their source, and — only when you expand it — the **rule and citation**
+(FLSA/OBBBA, IRS Pub 15-T, the 2025/2026 brackets, Illinois, TSP, HSA). The
+citation registry lives in [`cites.js`](cites.js).
+
+## Architecture (PWA now, iOS later)
+
+All math lives in a **pure** engine, [`tax.js`](tax.js) (`window.TaxCalc`) — no
+DOM, no DB, no I/O. That makes it portable: the **same engine** can run inside a
+native SwiftUI iOS app via **JavaScriptCore**, with native UI on top. The
+contract is locked by [`fixtures/test-vectors.json`](fixtures/test-vectors.json),
+a self-contained set of `{input, expected}` cases that both the web harness and
+a future Swift `XCTest` run — so the engine can never drift across platforms.
 
 | File | Role |
 | --- | --- |
-| `index.html` | App shell; views toggled by `body[data-view]`; registers the SW. |
-| `styles.css` | iOS-flavored, dark-first, safe-area insets. |
-| `tax.js` | Pure engine `window.TaxCalc`. All formulas ported from `Pay Calculations.xlsx`. Tax tables are editable, year-keyed data. No DOM/DB. |
-| `parse.js` | `window.ELParse` — E&L `.doc` (HTML table) → normalized period. Pure. |
-| `db.js` | Dexie schema + data access `window.DB`. |
-| `app.js` | UI, view router, rendering. Wrapped in an IIFE. |
+| `tax.js` | Pure engine. Tax tables are editable, year-keyed data (2023–2026). |
+| `cites.js` | Citation registry (rule → title, url, retrieved date, quote). |
+| `parse.js` | Imports E&L `.doc` and **PDF** (E&L AD-334, W-2 form fields, 1040 summary) via pdf.js. |
+| `db.js` | Dexie/IndexedDB data layer. No personal data in defaults. |
+| `app.js` | UI, router, rendering, explain disclosures, bracket-fill, decisions, report. IIFE. |
 | `sw.js` / `manifest.json` / `icons/` | PWA plumbing. |
-| `scripts/verify.js` | Node harness: checks the engine against the real statements' ground-truth net/withholding. |
+| `scripts/verify.js` | Node harness — 60 checks vs. statement ground truth + the test vectors. |
+
+## Importing your data
+
+Settings → **Import**:
+- **E&L** (`.doc` or PDF) → per-paycheck history. The `.doc` export parses
+  exactly; the PDF (USDA AD-334) is best-effort and shows a confirm-and-edit step.
+- **W-2** PDF → reads the named form fields (wages, withholding, box 12 D/W,
+  state) to fill your household 2nd-job fields.
+- **Prior-year 1040** PDF → reads the return summary (AGI / taxable / total tax)
+  as a reference to help you fill the optional household fields.
+
+You can also add a paycheck manually, and export/import a JSON backup.
 
 ## Data privacy
 
-Your statements, spreadsheet, and any backup JSON are **git-ignored** (`data/`,
-`*.xlsx`, `*.doc`). Nothing financial is ever committed. The app runs entirely
-client-side; there is no network/auth.
+Your statements, returns, W-2s, 1099s, and any backup are **git-ignored**
+(`data/`, `*.xlsx`, `*.doc`, `*.pdf`). Nothing financial is committed; the app
+has no network or auth.
 
 ## Local development
 
 ```
 python -m http.server 8766 --directory .
+node scripts/verify.js     # 60 checks; place E&L .doc files in data/ for the ground-truth loop
 ```
 
 Open http://localhost:8766. The service worker needs HTTPS or localhost.
 
-Verify the engine against the real statements (place them in `data/`):
+## Tax tables & accuracy
 
-```
-node scripts/verify.js
-```
-
-## Importing your pay data
-
-Settings → **Import E&L statements (.doc)** — select one or more statement files
-(downloaded from your agency's E&L portal). They parse automatically into the
-per-pay-period history. You can also **add a paycheck manually** or edit any
-imported one. Use **Export / Import backup** to move data between devices.
-
-## Tax tables
-
-Federal withholding (IRS Pub 15-T) and 1040 income-tax brackets, the standard
-deduction, the Social-Security wage base, and Illinois figures are seeded for
-2023–2026 and are **editable in Settings** so the app survives annual updates.
+Federal withholding (Pub 15-T), 1040 income-tax + long-term-gains brackets, the
+standard deduction, Social-Security wage base, and Illinois figures are seeded
+for 2023–2026 from the IRS/IL releases and shown (with sources) in Settings →
+Tax tables. The 2026 figures reflect the IRS Rev. Proc. release. This is a
+predictor — not tax advice; verify against your actual return.

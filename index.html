@@ -23,73 +23,87 @@
   </header>
 
   <main>
-    <!-- DASHBOARD -->
+    <!-- ONBOARDING (first run) -->
+    <section id="onboarding" class="view onboarding" hidden>
+      <div class="card hero-card">
+        <h2 class="ob-title">See where your money really goes.</h2>
+        <p class="ob-sub">Two quick things and you'll get a live read on your tax rate, what overtime really nets you, and whether to shift money to your HSA or TSP. <b>Everything stays on this device.</b></p>
+        <div class="settings-group">
+          <label>Filing status
+            <select id="obFiling">
+              <option value="MFJ">Married filing jointly</option>
+              <option value="Single">Single</option>
+              <option value="HoH">Head of household</option>
+            </select>
+          </label>
+          <button id="obImportBtn" class="btn">Import an E&amp;L statement (.doc or PDF)</button>
+          <input type="file" id="obImportInput" accept=".doc,.html,.htm,.pdf" multiple hidden />
+          <div class="ob-or">or</div>
+          <label>Annual salary (rough start)
+            <input type="number" id="obSalary" placeholder="e.g. 122000" step="1000" />
+          </label>
+          <button id="obStartBtn" class="btn ghost">Start with salary</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- MONEY (dashboard) -->
     <section data-view-name="dashboard" class="view">
       <div id="adviceCards" class="advice-cards"></div>
-
       <div class="card">
         <div class="card-head"><h2>This paycheck</h2><span id="dashPeriodLabel" class="muted"></span></div>
         <div id="paycheckHero" class="paycheck-hero"></div>
         <div id="waterfall" class="waterfall"></div>
       </div>
-
       <div class="card">
         <div class="card-head"><h2>Where it goes</h2><span class="muted">this paycheck</span></div>
         <div id="categoryBreakdown" class="cat-breakdown"></div>
       </div>
-
       <div class="card">
         <div class="card-head"><h2>Year to date</h2><span id="ytdYearLabel" class="muted"></span></div>
         <div id="ytdTotals" class="ytd-totals"></div>
       </div>
     </section>
 
-    <!-- TAX RATE -->
+    <!-- RATE (bracket-fill) -->
     <section data-view-name="taxrate" class="view">
       <div class="card">
-        <div class="card-head"><h2>Your tax rate</h2><span class="muted">annualized</span></div>
-        <div id="rateGauges" class="rate-gauges"></div>
-        <div id="bracketLadder" class="bracket-ladder"></div>
+        <div class="card-head"><h2>Your brackets, filling up</h2><span class="muted">annualized taxable income</span></div>
+        <div id="bracketFill" class="bracket-fill"></div>
       </div>
-
       <div class="card">
-        <div class="card-head"><h2>Overtime &amp; bonus reality</h2><span class="muted">what you keep above the jump</span></div>
+        <div class="card-head"><h2>Where each gross dollar goes</h2><span class="muted">toggle categories</span></div>
+        <div id="dollarToggles" class="dollar-toggles"></div>
+        <div id="dollarBar" class="dollar-bar"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Overtime reality</h2><span class="muted">FLSA + the new OT deduction</span></div>
         <div id="otReality" class="ot-reality"></div>
       </div>
     </section>
 
-    <!-- SCENARIOS -->
-    <section data-view-name="scenarios" class="view">
+    <!-- PLAN (decisions + scenarios + projections) -->
+    <section data-view-name="plan" class="view">
       <div class="card">
-        <div class="card-head"><h2>What-if</h2><span class="muted">per paycheck</span></div>
-        <div class="scenario-controls">
-          <label>HSA / pre-tax per paycheck
-            <input type="range" id="hsaSlider" min="0" max="800" step="25" value="0" />
-            <output id="hsaOut">$0</output>
-          </label>
-          <label>Extra TSP (% of base)
-            <input type="range" id="tspSlider" min="0" max="20" step="1" value="0" />
-            <output id="tspOut">0%</output>
-          </label>
-        </div>
-        <div id="scenarioResult" class="scenario-result"></div>
+        <div class="card-head"><h2>Should I move money?</h2><span class="muted">the 3 decisions</span></div>
+        <div id="decisionTools" class="decision-tools"></div>
       </div>
-
       <div class="card">
         <div class="card-head"><h2>Will I owe?</h2><span class="muted">annual estimate</span></div>
         <div id="annualEstimate" class="annual-estimate"></div>
       </div>
+      <div class="card">
+        <div class="card-head"><h2>The long game</h2><span class="muted">TSP &amp; FERS</span></div>
+        <div id="tspProjection"></div>
+        <div id="fersProjection"></div>
+      </div>
     </section>
 
-    <!-- PROJECTIONS -->
-    <section data-view-name="projections" class="view">
-      <div class="card">
-        <div class="card-head"><h2>TSP at retirement</h2><span id="tspYears" class="muted"></span></div>
-        <div id="tspProjection"></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2>FERS annuity</h2><span class="muted">basic pension</span></div>
-        <div id="fersProjection"></div>
+    <!-- REPORT -->
+    <section data-view-name="report" class="view">
+      <div class="card report-card">
+        <div class="card-head"><h2>Your tax report</h2><button id="printReportBtn" class="chip">Print / Save PDF</button></div>
+        <div id="reportBody" class="report-body"></div>
       </div>
     </section>
 
@@ -98,9 +112,9 @@
       <div class="card">
         <div class="card-head"><h2>Import &amp; data</h2></div>
         <div class="settings-group">
-          <button id="importElBtn" class="btn">Import E&amp;L statements (.doc)</button>
-          <input type="file" id="importElInput" accept=".doc,.html,.htm" multiple hidden />
-          <p class="hint" id="importStatus"></p>
+          <button id="importBtn" class="btn">Import statements / W-2 / 1040</button>
+          <input type="file" id="importInput" accept=".doc,.html,.htm,.pdf" multiple hidden />
+          <p class="hint" id="importStatus">E&amp;L (.doc or PDF), W-2 PDF, or last year's 1040 PDF. Your files never leave this device.</p>
           <button id="addManualBtn" class="btn ghost">+ Add a paycheck manually</button>
           <div class="row-actions">
             <button id="exportBackupBtn" class="btn ghost">Export backup</button>
@@ -121,29 +135,26 @@
               <option value="HoH">Head of household</option>
             </select>
           </label>
-          <label>IL withholding allowances
-            <input type="number" id="setIlAllowances" min="0" step="1" />
-          </label>
-          <label>W-4 deduction adjustment ($/yr)
-            <input type="number" id="setW4Deductions" step="100" />
-          </label>
-          <label>W-4 tax credits ($/yr)
-            <input type="number" id="setW4Credits" step="100" />
-          </label>
-          <label class="checkbox">
-            <input type="checkbox" id="setIncludeHsa" />
-            Count HSA/pre-tax savings as "retained" in net stats
-          </label>
+          <label>IL withholding allowances <input type="number" id="setIlAllowances" min="0" step="1" /></label>
+          <label>W-4 deduction adjustment ($/yr) <input type="number" id="setW4Deductions" step="100" /></label>
+          <label>W-4 tax credits ($/yr) <input type="number" id="setW4Credits" step="100" /></label>
+          <label class="checkbox"><input type="checkbox" id="setIncludeHsa" /> Count HSA/pre-tax as "retained" in net stats</label>
         </div>
       </div>
 
-      <div class="card">
+      <div class="card collapsible">
+        <div class="card-head"><h2>Household (optional)</h2><span class="muted">sharpens the prediction</span></div>
+        <p class="hint">Optional — leave blank to project from your FEMA pay alone. These make the "will I owe?" estimate match your real return.</p>
+        <div class="settings-group" id="householdForm"></div>
+      </div>
+
+      <div class="card collapsible">
         <div class="card-head"><h2>Retirement assumptions</h2></div>
         <div class="settings-group" id="assumptionsForm"></div>
       </div>
 
       <div class="card collapsible">
-        <div class="card-head"><h2>Tax tables</h2><span class="muted">advanced</span></div>
+        <div class="card-head"><h2>Tax tables</h2><span class="muted">advanced · cited</span></div>
         <div id="taxTableEditor" class="settings-group"></div>
       </div>
     </section>
@@ -152,10 +163,31 @@
   <nav class="tabbar">
     <button data-go="dashboard" class="tab"><span>Money</span></button>
     <button data-go="taxrate" class="tab"><span>Rate</span></button>
-    <button data-go="scenarios" class="tab"><span>What-if</span></button>
-    <button data-go="projections" class="tab"><span>Future</span></button>
+    <button data-go="plan" class="tab"><span>Plan</span></button>
+    <button data-go="report" class="tab"><span>Report</span></button>
     <button data-go="settings" class="tab"><span>Settings</span></button>
   </nav>
+
+  <!-- Explain modal -->
+  <div id="explainModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="explainTitle">How this is computed</h3><button class="modal-x" id="explainClose">&times;</button></div>
+      <div id="explainBody" class="explain-body"></div>
+    </div>
+  </div>
+
+  <!-- Import confirm modal -->
+  <div id="confirmModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-head"><h3 id="confirmTitle">Confirm imported values</h3><button class="modal-x" id="confirmClose">&times;</button></div>
+      <p class="hint" id="confirmHint"></p>
+      <div id="confirmBody" class="period-form"></div>
+      <div class="modal-actions">
+        <button id="confirmSaveBtn" class="btn">Looks right — save</button>
+        <button id="confirmCancelBtn" class="btn ghost">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Manual / edit paycheck modal -->
   <div id="periodModal" class="modal" hidden>
@@ -172,6 +204,15 @@
   <div id="toast" class="toast" hidden></div>
 
   <script src="https://unpkg.com/dexie@3/dist/dexie.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+  <script>
+    // pdf.js (module build) → expose globally for the classic-script parser.
+    import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs').then((m) => {
+      window.pdfjsLib = m;
+      m.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
+    }).catch(() => {});
+  </script>
+  <script src="cites.js"></script>
   <script src="tax.js"></script>
   <script src="parse.js"></script>
   <script src="db.js"></script>
